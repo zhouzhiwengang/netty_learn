@@ -1,51 +1,61 @@
 package com.netty.server.three.handler;
 
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 
-public class HeartBeatHandler extends SimpleChannelInboundHandler<String> {
-	int readIdleTimes = 0;
+public class HeartBeatHandler extends ChannelInboundHandlerAdapter  {
+	 /** 空闲次数 */
+    private int idle_count = 1;
+    /** 发送次数 */
+    private int count = 1;
 
-	@Override
-	protected void channelRead0(ChannelHandlerContext ctx, String s) throws Exception {
-		System.out.println(" ====== > [server] message received : " + s);
-		if ("I am alive".equals(s)) {
-			ctx.channel().writeAndFlush("copy that");
-		} else {
-			System.out.println(" 其他信息处理 ... ");
-		}
-	}
-	
-	@Override
-    public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
-        IdleStateEvent event = (IdleStateEvent)evt;
- 
-        String eventType = null;
-        switch (event.state()){
-            case READER_IDLE:
-                eventType = "读空闲";
-                readIdleTimes ++; // 读空闲的计数加1
-                break;
-            case WRITER_IDLE:
-                eventType = "写空闲";
-                // 不处理
-                break;
-            case ALL_IDLE:
-                eventType ="读写空闲";
-                // 不处理
-                break;
-        }
-        System.out.println(ctx.channel().remoteAddress() + "超时事件：" +eventType);
-        if(readIdleTimes > 3){
-            System.out.println(" [server]读空闲超过3次，关闭连接");
-            ctx.channel().writeAndFlush("you are out");
-            ctx.channel().close();
+    /**
+     * 超时处理，如果5秒没有收到客户端的心跳，就触发; 如果超过两次，则直接关闭;
+     */
+    @Override
+    public void userEventTriggered(ChannelHandlerContext ctx, Object obj) throws Exception {
+        if (obj instanceof IdleStateEvent) {
+            IdleStateEvent event = (IdleStateEvent) obj;
+            if (IdleState.READER_IDLE.equals(event.state())) { // 如果读通道处于空闲状态，说明没有接收到心跳命令
+                if (idle_count > 2) {
+                    System.out.println("超过两次无客户端请求，关闭该channel");
+                    ctx.channel().close();
+                }
+                
+                System.out.println("已等待5秒还没收到客户端发来的消息");
+                idle_count++;
+            }
+        } else {
+            super.userEventTriggered(ctx, obj);
         }
     }
+
+    /**
+     * 业务逻辑处理
+     */
     @Override
-    public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        System.err.println("=== " + ctx.channel().remoteAddress() + " is active ===");
+    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        System.out.println("第" + count + "次" + "，服务端收到的消息:" + msg);
+        
+        String message = (String) msg;
+        // 如果是心跳命令，服务端收到命令后回复一个相同的命令给客户端
+        if ("hb_request".equals(message)) { 
+            ctx.write("服务端成功收到心跳信息");
+            ctx.flush();
+        }
+        
+        count++;
+    }
+
+    /**
+     * 异常处理
+     */
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        cause.printStackTrace();
+        ctx.close();
     }
 
 }
