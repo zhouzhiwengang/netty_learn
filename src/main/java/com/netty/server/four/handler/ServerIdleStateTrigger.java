@@ -1,6 +1,5 @@
 package com.netty.server.four.handler;
 
-import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.timeout.IdleState;
@@ -17,7 +16,7 @@ public class ServerIdleStateTrigger extends ChannelInboundHandlerAdapter  {
 		if (evt instanceof IdleStateEvent) {
             IdleState state = ((IdleStateEvent) evt).state();
             if (state == IdleState.READER_IDLE) {
-            	ctx.writeAndFlush("heartbeat").addListener(ChannelFutureListener.CLOSE_ON_FAILURE) ;
+            	ctx.writeAndFlush("heartbeat");
             }
         } 
         super.userEventTriggered(ctx, evt);
